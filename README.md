@@ -19,9 +19,8 @@ This project implements a Merkle Tree–based Proof of Reserve system using C# a
 ### 2. Generate Merkle Proof for a Specific User
 - Endpoint: `GET /api/merkle-proof/{id}`
 - Returns:
-  - Merkle proof hashes (sibling nodes)
-  - Sibling position (left/right)
   - User balance
+  - Merkle proof hashes (sibling nodes), Sibling position (left/right)
 
 ### 3. Validate a Merkle Proof
 - Endpoint: `GET /api/merkle-verify?id=2&balance=2222`
@@ -32,7 +31,25 @@ This project implements a Merkle Tree–based Proof of Reserve system using C# a
 - Endpoint: `GET /api/add-user?id=4&balance=4444`
 - Adds a user to `UserList.json` if not already present
 
+## ✅ Features Implemented - PART 3
+### 1. Generate Merkle Proof for a Specific User by generating MerkleTree and calculating merkle root 
+- Endpoint: `GET /api/merkle-proof-fast/{id}`
+- Loads user data from `UserList.json`
+- Returns:
+  - User balance
+  - Merkle proof hashes (sibling nodes), Sibling position (left/right)
+
+### 2. Validate a Merkle Proof using Merkle Tree
+- Endpoint: `GET /api/merkle-verify-fast?id=2&balance=2222`
+- Loads user data from `UserList.json`
+- Constructs Merkle Tree
+- Generates Merkle Proof using the Merkle Tree
+- Validates the Merkle proof
+- Returns `isValid: true/false`
 ---
+
+### 3. Dockerfile support for portability
+ - Dockerfile is added to increase portability of the code
 
 ## 📁 File Structure
 
@@ -52,16 +69,26 @@ UserList.json            -- Persistent user data store
 
 ## 🛠 How to Run
 
+### Using VS code
 1. Unzip the project folder
 2. Run the project:
    ```bash
    dotnet run
    ```
-3. Access APIs at:
+
+### Using Docker
+1. Building Docker: docker build -t merkle-app -f Dockerfile .
+2. Running the app: docker run -d -p 5000:80 --name proof-of-reserve merkle-app
+3. Stop the Docker: docker stop proof-of-reserve
+4. Delete the Docker app: docker rm proof-of-reserve
+
+### API Usage:
+   - `http://localhost:5000/api/add-user?id=9&balance=9999`
    - `http://localhost:5000/api/merkle-root`
    - `http://localhost:5000/api/merkle-proof/1`
    - `http://localhost:5000/api/merkle-verify?id=1&balance=1111`
-
+   - `http://localhost:5000/api/merkle-proof-fast/1`
+   - `http://localhost:5000/api/merkle-verify-fast?id=1&balance=1111`
 ---
 
 ## ✅ Sample UserList.json
@@ -83,7 +110,3 @@ UserList.json            -- Persistent user data store
 - The system is stateless and reloads `UserList.json` per request for reliability.
 
 ---
-
-## 👤 Author
-
-Prajwal B V

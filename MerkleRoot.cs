@@ -29,15 +29,25 @@ namespace MerkleLib
         }
     }
 
+    public class MerkleNode
+    {
+        public byte[] Hash { get; set; }
+        public MerkleNode Left { get; set; }
+        public MerkleNode Right { get; set; }
+        public bool IsLeaf => Left == null && Right == null;
+    }
+
     public class MerkleTree
     {
         private readonly string _Leaftag;
-        private readonly string _branchtag;
+        private readonly string _Branchtag;
+
+        public MerkleNode Root { get; private set; }
 
         public MerkleTree(string Leaftag, string Branchtag)
         {
             _Leaftag = Leaftag;
-            _branchtag = Branchtag;
+            _Branchtag = Branchtag;
         }
         public byte[] ComputeMerkleRoot(List<string> strLeaves)
         {
@@ -62,7 +72,7 @@ namespace MerkleLib
                     var concatenated = new byte[nodes[i].Length * 2];
                     Buffer.BlockCopy(nodes[i], 0, concatenated, 0, nodes[i].Length);
                     Buffer.BlockCopy(nodes[i + 1], 0, concatenated, nodes[i].Length, nodes[i + 1].Length);
-                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_branchtag, concatenated));
+                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_Branchtag, concatenated));
                 }
                 //reassign newly calculated nodes to old nodes
                 nodes = newNodes;
@@ -111,13 +121,70 @@ namespace MerkleLib
                         else
                             Proof.Add((left, 0)); // left sibling
                     }
-                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_branchtag, concatenated));
+                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_Branchtag, concatenated));
                 }
                 index = index / 2;
                 nodes = newNodes;
             }
 
             return (nodes[0], Proof, bal);
+        }
+
+        public byte[] CreateMerkleTree(List<User> users)
+        {
+
+            List<MerkleNode> nodes = new List<MerkleNode>();
+
+            for (int i = 0; i < users.Count; i++)
+            {
+                nodes.Add(new MerkleNode
+                {
+                    Hash = TaggedHashUtil.ComputeTaggedHash(_Leaftag, Encoding.UTF8.GetBytes(users[i].ToString())),
+                    Left = null,
+                    Right = null
+                });
+            }
+            while (nodes.Count > 1)
+            {
+                if (nodes.Count % 2 != 0) nodes.Add(nodes[^1]);
+                var parents = new List<MerkleNode>();
+                for (int i = 0; i < nodes.Count; i += 2)
+                {
+                    var leftNode = nodes[i];
+                    var rightNode = nodes[i + 1];
+                    var combined = leftNode.Hash.Concat(rightNode.Hash).ToArray();
+                    var parent = new MerkleNode
+                    {
+                        Left = leftNode,
+                        Right = rightNode,
+                        Hash = TaggedHashUtil.ComputeTaggedHash(_Branchtag, combined)
+                    };
+                    parents.Add(parent);
+                }
+                nodes = parents;
+            }
+            Root = nodes[0];
+            return Root.Hash;
+        }
+
+        public bool GenerateMerkleProofWithTree(MerkleNode node, byte[] hashLeaf, List<(byte[] Hash, int Position)> path)
+        {
+            if (node.IsLeaf && node.Hash.SequenceEqual(hashLeaf))
+                return true;
+
+            if (node.Left != null && GenerateMerkleProofWithTree(node.Left, hashLeaf, path))
+            {
+                path.Add((node.Right.Hash, 1));
+                return true;
+            }
+
+            if (node.Right != null && GenerateMerkleProofWithTree(node.Right, hashLeaf, path))
+            {
+                path.Add((node.Left.Hash, 0));
+                return true;
+            }
+
+            return false;
         }
 
         public bool ValidateMerkleProof(List<(byte[] Hash, int Position)> Proof, User user, byte[] expectedRoot)
@@ -127,11 +194,11 @@ namespace MerkleLib
             {
                 if (position == 0) //sibling is on the left
                 {
-                    currentHash = TaggedHashUtil.ComputeTaggedHash(_branchtag, siblingHash.Concat(currentHash).ToArray());
+                    currentHash = TaggedHashUtil.ComputeTaggedHash(_Branchtag, siblingHash.Concat(currentHash).ToArray());
                 }
                 else
                 {
-                    currentHash = TaggedHashUtil.ComputeTaggedHash(_branchtag, currentHash.Concat(siblingHash).ToArray());
+                    currentHash = TaggedHashUtil.ComputeTaggedHash(_Branchtag, currentHash.Concat(siblingHash).ToArray());
                 }
             }
             return currentHash.SequenceEqual(expectedRoot);

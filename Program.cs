@@ -1,8 +1,17 @@
 ﻿using System;
 using MerkleLib;
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(serverOptions => {
+    serverOptions.ListenAnyIP(5000); // Development port
+    serverOptions.ListenAnyIP(80);   // Docker port
+});
+
 builder.Services.AddControllers();
+
 var app = builder.Build();
+app.UseHttpsRedirection();
+app.UseAuthorization();
 app.MapControllers();
 
 MerkleTest.RunTest();
