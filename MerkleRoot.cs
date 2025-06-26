@@ -31,21 +31,24 @@ namespace MerkleLib
 
     public class MerkleTree
     {
-        private readonly string _tag;
+        private readonly string _Leaftag;
+        private readonly string _branchtag;
 
-        public MerkleTree(string tag)
+        public MerkleTree(string Leaftag, string Branchtag)
         {
-            _tag = tag;
+            _Leaftag = Leaftag;
+            _branchtag = Branchtag;
         }
         public byte[] ComputeMerkleRoot(List<string> strLeaves)
         {
             List<byte[]> nodes = new List<byte[]>();
-            //Compute and store the hash of each leaf
+            //Compute and store the hash of each leaf on the node
             for (int i = 0; i < strLeaves.Count; i++)
             {
-                nodes.Add(TaggedHashUtil.ComputeTaggedHash(_tag, Encoding.UTF8.GetBytes(strLeaves[i])));
+                nodes.Add(TaggedHashUtil.ComputeTaggedHash(_Leaftag, Encoding.UTF8.GetBytes(strLeaves[i])));
             }
 
+            //compute merkle by iteratively hashing each nodes level by level
             while (nodes.Count > 1)
             {
                 if (nodes.Count % 2 != 0)
@@ -59,40 +62,80 @@ namespace MerkleLib
                     var concatenated = new byte[nodes[i].Length * 2];
                     Buffer.BlockCopy(nodes[i], 0, concatenated, 0, nodes[i].Length);
                     Buffer.BlockCopy(nodes[i + 1], 0, concatenated, nodes[i].Length, nodes[i + 1].Length);
-                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_tag, concatenated));
+                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_branchtag, concatenated));
                 }
+                //reassign newly calculated nodes to old nodes
                 nodes = newNodes;
             }
             return nodes[0];
         }
-        
-        // public byte[] ComputeMerkleRoot(List<string> leaves)
-        // {
-        //     List<byte[]> nodes = leaves
-        //         .Select(s => TaggedHashUtil.ComputeTaggedHash(_tag, Encoding.UTF8.GetBytes(s)))
-        //         .ToList();
 
-        //     while (nodes.Count > 1)
-        //     {
-        //         if (nodes.Count % 2 != 0)
-        //         {
-        //             nodes.Add(nodes[^1]); // duplicate last element if odd
-        //         }
+        public (byte[] root, List<(byte[] Hash, int Position)> Proof, int UserBalance) GenerateMerkleProof(List<User> users, int userId)
+        {
+            List<byte[]> nodes = new List<byte[]>();
+            //Compute and store the hash of each leaf on the node
+            for (int i = 0; i < users.Count; i++)
+            {
+                nodes.Add(TaggedHashUtil.ComputeTaggedHash(_Leaftag, Encoding.UTF8.GetBytes(users[i].ToString())));
+            }
 
-        //         var newLevel = new List<byte[]>();
+            List<(byte[] Hash, int Position)> Proof = new List<(byte[] Hash, int Position)>();
 
-        //         for (int i = 0; i < nodes.Count; i += 2)
-        //         {
-        //             var combined = nodes[i].Concat(nodes[i + 1]).ToArray();
-        //             var parentHash = TaggedHashUtil.ComputeTaggedHash(_tag, combined);
-        //             newLevel.Add(parentHash);
-        //         }
+            //Find the index in the list of users
+            int index = users.FindIndex(u => u.Id == userId);
+            if (index == -1)
+                throw new Exception("User ID not found");
 
-        //         nodes = newLevel;
-        //     }
+            var bal = users[index].Balance;
 
-        //     return nodes[0];
-        // }
+
+            while (nodes.Count > 1)
+            {
+                if (nodes.Count % 2 != 0)
+                {
+                    nodes.Add(nodes[^1]);
+                }
+                List<byte[]> newNodes = new List<byte[]>();
+
+                for (int i = 0; i < nodes.Count; i += 2)
+                {
+                    var left = nodes[i];
+                    var right = nodes[i + 1];
+                    var concatenated = new byte[left.Length * 2];
+                    Buffer.BlockCopy(left, 0, concatenated, 0, left.Length);
+                    Buffer.BlockCopy(right, 0, concatenated, left.Length, right.Length);
+                    if (i == index || i + 1 == index)
+                    {
+                        if (index % 2 == 0)
+                            Proof.Add((right, 1)); // right sibling
+                        else
+                            Proof.Add((left, 0)); // left sibling
+                    }
+                    newNodes.Add(TaggedHashUtil.ComputeTaggedHash(_branchtag, concatenated));
+                }
+                index = index / 2;
+                nodes = newNodes;
+            }
+
+            return (nodes[0], Proof, bal);
+        }
+
+        public bool ValidateMerkleProof(List<(byte[] Hash, int Position)> Proof, User user, byte[] expectedRoot)
+        {
+            byte[] currentHash = TaggedHashUtil.ComputeTaggedHash(_Leaftag, Encoding.UTF8.GetBytes(user.ToString()));
+            foreach (var (siblingHash, position) in Proof)
+            {
+                if (position == 0) //sibling is on the left
+                {
+                    currentHash = TaggedHashUtil.ComputeTaggedHash(_branchtag, siblingHash.Concat(currentHash).ToArray());
+                }
+                else
+                {
+                    currentHash = TaggedHashUtil.ComputeTaggedHash(_branchtag, currentHash.Concat(siblingHash).ToArray());
+                }
+            }
+            return currentHash.SequenceEqual(expectedRoot);
+        }
 
     }
 }
