@@ -7,12 +7,17 @@ using System.Linq;
 using MerkleLib;
 using System.Text.Json;
 
-
+/// <summary>
+/// Web API Controller for Proof of Reserve functionality using Merkle trees.
+/// Exposes endpoints to add users, compute Merkle roots, generate and verify proofs.
+/// </summary>
 [ApiController]
 [Route("api")]
 public class ProofController : ControllerBase
 {
-
+    /// <summary>
+    /// Adds a new user to UserList.json if the ID doesn't already exist.
+    /// </summary>
     [HttpGet("add-user")]
     public IActionResult AddUser([FromQuery] int id, [FromQuery] int balance)
     {
@@ -44,6 +49,9 @@ public class ProofController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Returns the Merkle root computed from the current user list.
+    /// </summary>
     [HttpGet("merkle-root")]
     public IActionResult GetMerkleRoot()
     {
@@ -60,6 +68,9 @@ public class ProofController : ControllerBase
         return Ok(new { merkleRoot = TaggedHashUtil.ToHex(root) });
     }
 
+    /// <summary>
+    /// Returns a Merkle proof for a specific user based on the current Merkle root.
+    /// </summary>
     [HttpGet("merkle-proof/{id}")]
     public IActionResult GetProof(int id)
     {
@@ -89,6 +100,9 @@ public class ProofController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Verifies a Merkle proof for a given user (via query string).
+    /// </summary>
     [HttpGet("merkle-verify")]
     public IActionResult ValidateProof([FromQuery] int id, [FromQuery] int balance)
     {
@@ -115,6 +129,9 @@ public class ProofController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Returns a Merkle proof using a fully built tree (faster for large trees, less recomputation).
+    /// </summary>
     [HttpGet("merkle-proof-fast/{id}")]
     public IActionResult GetProofFast(int id)
     {
@@ -152,6 +169,9 @@ public class ProofController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Validates a Merkle proof using a fully built tree (efficient for large lists).
+    /// </summary>
     [HttpGet("merkle-verify-fast")]
     public IActionResult ValidateProofFast([FromQuery] int id, [FromQuery] int balance)
     {

@@ -6,8 +6,16 @@ using System.Text;
 
 namespace MerkleLib
 {
+    // Utility class for BIP340-style tagged hashing and hex encoding
     public static class TaggedHashUtil
     {
+        /// <summary>
+        /// Computes a tagged hash as defined in BIP340:
+        /// SHA256(SHA256(tag) || SHA256(tag) || message)
+        /// </summary>
+        /// <param name="tag">The context-specific tag (e.g., "ProofOfReserve_Leaf")</param>
+        /// <param name="message">The input message to hash</param>
+        /// <returns>A SHA256 hash of the tagged message</returns>
         public static byte[] ComputeTaggedHash(string tag, byte[] message)
         {
             using var sha256 = SHA256.Create();
@@ -20,30 +28,68 @@ namespace MerkleLib
             Buffer.BlockCopy(message, 0, concatenated, tagHash.Length * 2, message.Length);
 
             return sha256.ComputeHash(concatenated);
-
         }
 
+        /// <summary>
+        /// Converts a byte array to a lowercase hexadecimal string representation.
+        /// </summary>
+        /// <param name="bytes">The input byte array to convert.</param>
+        /// <returns>A string containing the hexadecimal representation (lowercase, no dashes).</returns>
         public static string ToHex(byte[] bytes)
         {
             return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
         }
     }
 
+    /// <summary>
+    /// Represents a node in the Merkle Tree structure.
+    /// Each node contains a cryptographic hash and optional child nodes.
+    /// </summary>
     public class MerkleNode
     {
+        /// <summary>
+        /// The SHA256 hash value of the node.
+        /// For leaves: hash of the data.
+        /// For branches: hash of the concatenated child hashes.
+        /// </summary>
         public byte[] Hash { get; set; }
+        /// <summary>
+        /// Reference to the left child node.
+        /// Null if this is a leaf node.
+        /// </summary>
         public MerkleNode Left { get; set; }
+        /// <summary>
+        /// Reference to the right child node.
+        /// Null if this is a leaf node.
+        /// </summary>
         public MerkleNode Right { get; set; }
+        /// <summary>
+        /// Returns true if the node is a leaf (has no children).
+        /// Used for identifying leaf nodes in traversal or proof generation.
+        /// </summary>
         public bool IsLeaf => Left == null && Right == null;
     }
 
+    /// <summary>
+    /// Represents a Merkle Tree implementation with BIP340-compatible tagged hashing.
+    /// Provides methods to compute the Merkle root, generate proofs, and verify them.
+    /// </summary>
     public class MerkleTree
     {
+        // Domain separation tags for leaves and branches, as per BIP340
         private readonly string _Leaftag;
         private readonly string _Branchtag;
 
-        public MerkleNode Root { get; private set; }
+        /// <summary>
+        /// The root node of the Merkle Tree after creation.
+        /// </summary>
+        public MerkleNode? Root { get; private set; }
 
+        /// <summary>
+        /// Initializes a new instance of the MerkleTree class with specified leaf and branch tags.
+        /// </summary>
+        /// <param name="Leaftag">The tag used for hashing leaf nodes.</param>
+        /// <param name="Branchtag">The tag used for hashing internal/branch nodes.</param>
         public MerkleTree(string Leaftag, string Branchtag)
         {
             _Leaftag = Leaftag;
@@ -80,6 +126,9 @@ namespace MerkleLib
             return nodes[0];
         }
 
+        /// <summary>
+        /// Generates a Merkle proof for a specific user, returning the root hash, the proof path, and the user's balance.
+        /// </summary>
         public (byte[] root, List<(byte[] Hash, int Position)> Proof, int UserBalance) GenerateMerkleProof(List<User> users, int userId)
         {
             List<byte[]> nodes = new List<byte[]>();
@@ -130,6 +179,11 @@ namespace MerkleLib
             return (nodes[0], Proof, bal);
         }
 
+        /// <summary>
+        /// Builds the Merkle Tree using full node objects and sets the root.
+        /// </summary>
+        /// <param name="users">List of users to convert into leaf nodes.</param>
+        /// <returns>The Merkle root hash.</returns>
         public byte[] CreateMerkleTree(List<User> users)
         {
 
@@ -167,6 +221,13 @@ namespace MerkleLib
             return Root.Hash;
         }
 
+        /// <summary>
+        /// Traverses the Merkle tree to generate a proof for a specific leaf hash.
+        /// </summary>
+        /// <param name="node">The current node (usually start with Root).</param>
+        /// <param name="hashLeaf">The leaf hash to prove.</param>
+        /// <param name="path">Output path of sibling hashes with position.</param>
+        /// <returns>True if the leaf was found and the path populated.</returns>
         public bool GenerateMerkleProofWithTree(MerkleNode node, byte[] hashLeaf, List<(byte[] Hash, int Position)> path)
         {
             if (node.IsLeaf && node.Hash.SequenceEqual(hashLeaf))
@@ -187,6 +248,14 @@ namespace MerkleLib
             return false;
         }
 
+
+        /// <summary>
+        /// Verifies the given Merkle proof for a user against a known Merkle root.
+        /// </summary>
+        /// <param name="Proof">List of sibling hashes and their positions in the tree.</param>
+        /// <param name="user">The user to validate.</param>
+        /// <param name="expectedRoot">The Merkle root hash to validate against.</param>
+        /// <returns>True if the proof is valid, false otherwise.</returns>
         public bool ValidateMerkleProof(List<(byte[] Hash, int Position)> Proof, User user, byte[] expectedRoot)
         {
             byte[] currentHash = TaggedHashUtil.ComputeTaggedHash(_Leaftag, Encoding.UTF8.GetBytes(user.ToString()));
